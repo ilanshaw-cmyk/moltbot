@@ -13,6 +13,7 @@ import { loadConfig } from "../config/config.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
+import { handleA2PMAuthRequest } from "./a2pm-auth.js";
 import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
 import {
   extractHookToken,
@@ -229,6 +230,18 @@ export function createGatewayHttpServer(opts: {
     try {
       const configSnapshot = loadConfig();
       const trustedProxies = configSnapshot.gateway?.trustedProxies ?? [];
+
+      // A2PM Authentication check - runs before Control UI to protect the web interface
+      // This is enabled via CLAWDBOT_A2PM_AUTH=true environment variable
+      // Skip paths: health checks, hooks, OpenAI API (which has its own auth)
+      const a2pmAuthResult = await handleA2PMAuthRequest(req, res, {
+        skipPaths: ["/health", "/healthz", "/api/health", "/hooks", "/v1", "/responses"],
+      });
+      // If a2pmAuthResult is true, the request was handled (redirected or rejected)
+      if (a2pmAuthResult === true) return;
+      // If a2pmAuthResult is an object (user), auth succeeded - continue with authenticated user
+      // If a2pmAuthResult is false, auth is disabled - continue without auth
+
       if (await handleHooksRequest(req, res)) return;
       if (
         await handleToolsInvokeHttpRequest(req, res, {
