@@ -57,7 +57,15 @@ export function setLastActiveSessionKey(host: SettingsHost, next: string) {
 }
 
 export function applySettingsFromUrl(host: SettingsHost) {
-  if (!window.location.search) return;
+  console.log("[applySettingsFromUrl] starting", {
+    search: window.location.search,
+    href: window.location.href,
+    currentToken: host.settings.token,
+  });
+  if (!window.location.search) {
+    console.log("[applySettingsFromUrl] early return: no search params");
+    return;
+  }
   const params = new URLSearchParams(window.location.search);
   const tokenRaw = params.get("token");
   const passwordRaw = params.get("password");
@@ -65,10 +73,23 @@ export function applySettingsFromUrl(host: SettingsHost) {
   const gatewayUrlRaw = params.get("gatewayUrl");
   let shouldCleanUrl = false;
 
+  console.log("[applySettingsFromUrl] parsed params", {
+    tokenRaw,
+    passwordRaw,
+    sessionRaw,
+    gatewayUrlRaw,
+  });
+
   if (tokenRaw != null) {
     const token = tokenRaw.trim();
+    console.log("[applySettingsFromUrl] token check", {
+      token,
+      currentToken: host.settings.token,
+      willApply: token && token !== host.settings.token,
+    });
     if (token && token !== host.settings.token) {
       applySettings(host, { ...host.settings, token });
+      console.log("[applySettingsFromUrl] applied token, new settings:", host.settings);
     }
     params.delete("token");
     shouldCleanUrl = true;
@@ -276,6 +297,16 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
   const currentPath = normalizePath(window.location.pathname);
   const url = new URL(window.location.href);
 
+  console.log("[syncUrlWithTab] before modification", {
+    tab,
+    basePath: host.basePath,
+    targetPath,
+    currentPath,
+    originalHref: window.location.href,
+    urlSearch: url.search,
+    urlSearchParams: Object.fromEntries(url.searchParams),
+  });
+
   if (tab === "chat" && host.sessionKey) {
     url.searchParams.set("session", host.sessionKey);
   } else {
@@ -286,11 +317,22 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
     url.pathname = targetPath;
   }
 
+  console.log("[syncUrlWithTab] after modification", {
+    newUrl: url.toString(),
+    newSearch: url.search,
+    replace,
+  });
+
   if (replace) {
     window.history.replaceState({}, "", url.toString());
   } else {
     window.history.pushState({}, "", url.toString());
   }
+
+  console.log("[syncUrlWithTab] after replaceState", {
+    locationHref: window.location.href,
+    locationSearch: window.location.search,
+  });
 }
 
 export function syncUrlWithSessionKey(

@@ -98,7 +98,16 @@ function resolveOnboardingMode(): boolean {
 
 @customElement("moltbot-app")
 export class MoltbotApp extends LitElement {
-  @state() settings: UiSettings = loadSettings();
+  @state() settings: UiSettings = (() => {
+    const s = loadSettings();
+    console.log("[MoltbotApp] initial loadSettings()", {
+      initialUrl: window.location.href,
+      initialSearch: window.location.search,
+      loadedSettings: s,
+      localStorage: localStorage.getItem("moltbot.control.settings.v1"),
+    });
+    return s;
+  })();
   @state() password = "";
   @state() tab: Tab = "chat";
   @state() onboarding = resolveOnboardingMode();

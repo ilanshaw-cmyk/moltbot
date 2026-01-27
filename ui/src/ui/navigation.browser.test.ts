@@ -179,4 +179,28 @@ describe("control UI routing", () => {
     expect(window.location.pathname).toBe("/ui/overview");
     expect(window.location.search).toBe("");
   });
+
+  it("hydrates token from root URL and redirects to /chat", async () => {
+    const app = mountApp("/?token=xyz789");
+    await app.updateComplete;
+
+    expect(app.settings.token).toBe("xyz789");
+    expect(app.tab).toBe("chat");
+    expect(window.location.pathname).toBe("/chat");
+    // Session param remains, token is stripped
+    expect(window.location.search).toBe("?session=main");
+  });
+
+  it("persists token to localStorage when accessed via root URL", async () => {
+    const app = mountApp("/?token=persist-test-token");
+    await app.updateComplete;
+
+    expect(app.settings.token).toBe("persist-test-token");
+    
+    // Verify it was saved to localStorage
+    const stored = localStorage.getItem("moltbot.control.settings.v1");
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored!);
+    expect(parsed.token).toBe("persist-test-token");
+  });
 });
