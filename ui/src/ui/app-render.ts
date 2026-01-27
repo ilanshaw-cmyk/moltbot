@@ -496,6 +496,12 @@ export function renderApp(state: AppViewState) {
               onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
               assistantName: state.assistantName,
               assistantAvatar: state.assistantAvatar,
+              // Voice recording props
+              isRecording: state.isRecording,
+              isTranscribing: state.isTranscribing,
+              sttAvailable: state.sttAvailable ?? undefined,
+              onStartRecording: () => state.handleStartRecording(),
+              onStopRecording: () => state.handleStopRecording(),
             })
           : nothing}
 

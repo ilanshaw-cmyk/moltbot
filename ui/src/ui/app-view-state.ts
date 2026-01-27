@@ -50,6 +50,10 @@ export type AppViewState = {
   chatSending: boolean;
   chatMessage: string;
   chatAttachments: ChatAttachment[];
+  // Voice recording state
+  isRecording: boolean;
+  isTranscribing: boolean;
+  sttAvailable: boolean | null;
   chatMessages: unknown[];
   chatToolMessages: unknown[];
   chatStream: string | null;
@@ -196,6 +200,8 @@ export type AppViewState = {
   setChatMessage: (next: string) => void;
   handleChatSend: () => Promise<void>;
   handleChatAbort: () => Promise<void>;
+  handleStartRecording: () => Promise<void>;
+  handleStopRecording: () => void;
   handleChatSelectQueueItem: (id: string) => void;
   handleChatDropQueueItem: (id: string) => void;
   handleChatClearQueue: () => void;

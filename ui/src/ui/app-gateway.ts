@@ -52,6 +52,8 @@ type GatewayHost = {
   chatRunId: string | null;
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalError: string | null;
+  // Voice recording
+  checkSttAvailability?: () => Promise<void>;
 };
 
 type SessionDefaultsSnapshot = {
@@ -132,6 +134,8 @@ export function connectGateway(host: GatewayHost) {
       void loadNodes(host as unknown as ClawdbotApp, { quiet: true });
       void loadDevices(host as unknown as ClawdbotApp, { quiet: true });
       void refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0]);
+      // Check if STT (voice transcription) is available
+      void host.checkSttAvailability?.();
     },
     onClose: ({ code, reason }) => {
       host.connected = false;

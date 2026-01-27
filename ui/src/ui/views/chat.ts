@@ -55,6 +55,12 @@ export type ChatProps = {
   // Image attachments
   attachments?: ChatAttachment[];
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
+  // Voice recording
+  isRecording?: boolean;
+  isTranscribing?: boolean;
+  sttAvailable?: boolean;
+  onStartRecording?: () => void;
+  onStopRecording?: () => void;
   // Event handlers
   onRefresh: () => void;
   onToggleFocusMode: () => void;
@@ -344,6 +350,23 @@ export function renderChat(props: ChatProps) {
             ></textarea>
           </label>
           <div class="chat-compose__actions">
+            ${props.sttAvailable !== false && props.onStartRecording && props.onStopRecording
+              ? html`
+                  <button
+                    class="btn btn--icon chat-mic-btn ${props.isRecording ? "chat-mic-btn--recording" : ""}"
+                    ?disabled=${!props.connected || props.isTranscribing}
+                    @click=${props.isRecording ? props.onStopRecording : props.onStartRecording}
+                    title=${props.isRecording ? "Stop recording" : props.isTranscribing ? "Transcribing..." : "Start voice recording"}
+                    aria-label=${props.isRecording ? "Stop recording" : "Start voice recording"}
+                  >
+                    ${props.isTranscribing
+                      ? icons.loader
+                      : props.isRecording
+                        ? icons.square
+                        : icons.mic}
+                  </button>
+                `
+              : nothing}
             <button
               class="btn"
               ?disabled=${!props.connected || (!canAbort && props.sending)}

@@ -280,6 +280,53 @@
   box-sizing: border-box;
 }
 
+/* Microphone button styles */
+.chat-mic-btn {
+  padding: 0 !important;
+  width: 40px;
+  min-width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+
+.chat-mic-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chat-mic-btn--recording {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  color: #ef4444 !important;
+  animation: mic-pulse 1.5s ease-in-out infinite;
+}
+
+.chat-mic-btn--recording:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: rgba(239, 68, 68, 0.7) !important;
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Light theme mic button overrides */
+:root[data-theme="light"] .chat-mic-btn--recording {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+:root[data-theme="light"] .chat-mic-btn--recording:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+}
+
 /* Chat controls - moved to content-header area, left aligned */
 .chat-controls {
   display: flex;

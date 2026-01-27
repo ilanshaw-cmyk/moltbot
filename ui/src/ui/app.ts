@@ -130,6 +130,12 @@ export class ClawdbotApp extends LitElement {
   @state() chatThinkingLevel: string | null = null;
   @state() chatQueue: ChatQueueItem[] = [];
   @state() chatAttachments: ChatAttachment[] = [];
+  // Voice recording state
+  @state() isRecording = false;
+  @state() isTranscribing = false;
+  @state() sttAvailable: boolean | null = null;
+  private mediaRecorder: MediaRecorder | null = null;
+  private audioChunks: Blob[] = [];
   // Sidebar state for tool output viewing
   @state() sidebarOpen = false;
   @state() sidebarContent: string | null = null;
@@ -477,6 +483,121 @@ export class ClawdbotApp extends LitElement {
     const newRatio = Math.max(0.4, Math.min(0.7, ratio));
     this.splitRatio = newRatio;
     this.applySettings({ ...this.settings, splitRatio: newRatio });
+  }
+
+  // Voice recording handlers
+  async checkSttAvailability() {
+    if (!this.client) {
+      this.sttAvailable = false;
+      return;
+    }
+    try {
+      const result = await this.client.request<{ available?: boolean }>("stt.status");
+      this.sttAvailable = result?.available ?? false;
+    } catch {
+      this.sttAvailable = false;
+    }
+  }
+
+  async handleStartRecording() {
+    if (this.isRecording || this.isTranscribing) return;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.audioChunks = [];
+
+      // Determine the best supported format
+      const mimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      let mimeType = "audio/webm";
+      for (const type of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          break;
+        }
+      }
+
+      this.mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data);
+        }
+      };
+
+      this.mediaRecorder.onstop = async () => {
+        // Stop all tracks
+        stream.getTracks().forEach((track) => track.stop());
+
+        if (this.audioChunks.length === 0) {
+          this.isRecording = false;
+          return;
+        }
+
+        const audioBlob = new Blob(this.audioChunks, { type: mimeType.split(";")[0] });
+        await this.transcribeAudio(audioBlob, mimeType.split(";")[0]);
+      };
+
+      this.mediaRecorder.start(100); // Collect data every 100ms
+      this.isRecording = true;
+    } catch (err) {
+      console.error("Failed to start recording:", err);
+      this.lastError = `Microphone access denied or unavailable`;
+    }
+  }
+
+  handleStopRecording() {
+    if (!this.mediaRecorder || !this.isRecording) return;
+    this.isRecording = false;
+    this.mediaRecorder.stop();
+  }
+
+  private async transcribeAudio(blob: Blob, mimeType: string) {
+    if (!this.client) return;
+
+    this.isTranscribing = true;
+
+    try {
+      // Convert blob to base64
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          "",
+        ),
+      );
+
+      const result = await this.client.request<{ text?: string }>("stt.transcribe", {
+        audio: base64,
+        mimeType,
+      });
+
+      const transcript = result?.text?.trim();
+      if (transcript) {
+        // Copy to clipboard
+        try {
+          await navigator.clipboard.writeText(transcript);
+        } catch {
+          // Clipboard access may be denied, continue anyway
+        }
+
+        // Insert into message box (append if there's existing text)
+        const currentDraft = this.chatMessage.trim();
+        this.chatMessage = currentDraft
+          ? `${currentDraft} ${transcript}`
+          : transcript;
+      }
+    } catch (err) {
+      console.error("Transcription failed:", err);
+      this.lastError = `Transcription failed: ${String(err)}`;
+    } finally {
+      this.isTranscribing = false;
+    }
   }
 
   render() {
