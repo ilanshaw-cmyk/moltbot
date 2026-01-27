@@ -147,6 +147,7 @@ export class GatewayBrowserClient {
       authToken = storedToken ?? this.opts.token;
       canFallbackToShared = Boolean(storedToken && this.opts.token);
     }
+
     const auth =
       authToken || this.opts.password
         ? {

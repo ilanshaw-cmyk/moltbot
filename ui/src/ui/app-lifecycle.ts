@@ -34,24 +34,11 @@ type LifecycleHost = {
 };
 
 export function handleConnected(host: LifecycleHost) {
-  console.log("[handleConnected] starting", {
-    locationHref: window.location.href,
-    locationSearch: window.location.search,
-    locationPathname: window.location.pathname,
-  });
-
   host.basePath = inferBasePath();
-  console.log("[handleConnected] inferred basePath:", host.basePath);
-
   syncTabWithLocation(
     host as unknown as Parameters<typeof syncTabWithLocation>[0],
     true,
   );
-  console.log("[handleConnected] after syncTabWithLocation", {
-    locationHref: window.location.href,
-    locationSearch: window.location.search,
-  });
-
   syncThemeWithSettings(
     host as unknown as Parameters<typeof syncThemeWithSettings>[0],
   );
@@ -62,8 +49,6 @@ export function handleConnected(host: LifecycleHost) {
   applySettingsFromUrl(
     host as unknown as Parameters<typeof applySettingsFromUrl>[0],
   );
-  console.log("[handleConnected] after applySettingsFromUrl, calling connectGateway");
-
   connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
   startNodesPolling(host as unknown as Parameters<typeof startNodesPolling>[0]);
   if (host.tab === "logs") {

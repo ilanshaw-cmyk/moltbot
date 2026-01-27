@@ -564,6 +564,16 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
 
+        console.warn(
+          "[message-handler] DEBUG connectParams.auth",
+          JSON.stringify({
+            hasAuth: Boolean(connectParams.auth),
+            authToken: connectParams.auth?.token ?? null,
+            authPassword: connectParams.auth?.password ? "[REDACTED]" : null,
+            fullAuth: connectParams.auth,
+          }),
+        );
+
         const authResult = await authorizeGatewayConnect({
           auth: resolvedAuth,
           connectAuth: connectParams.auth,

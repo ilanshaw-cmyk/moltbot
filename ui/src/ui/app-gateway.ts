@@ -111,15 +111,6 @@ function applySessionDefaults(host: GatewayHost, defaults?: SessionDefaultsSnaps
 }
 
 export function connectGateway(host: GatewayHost) {
-  console.log("[connectGateway] starting", {
-    gatewayUrl: host.settings.gatewayUrl,
-    token: host.settings.token,
-    tokenTrimmed: host.settings.token.trim(),
-    hasToken: !!host.settings.token.trim(),
-    password: host.password ? "[REDACTED]" : undefined,
-    fullSettings: host.settings,
-  });
-
   host.lastError = null;
   host.hello = null;
   host.connected = false;
