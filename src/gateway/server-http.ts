@@ -47,6 +47,7 @@ type HookDispatchers = {
     model?: string;
     thinking?: string;
     timeoutSeconds?: number;
+    allowUnsafeExternalContent?: boolean;
   }) => string;
 };
 
@@ -76,12 +77,19 @@ export function createHooksRequestHandler(
       return false;
     }
 
-    const token = extractHookToken(req, url);
+    const { token, fromQuery } = extractHookToken(req, url);
     if (!token || token !== hooksConfig.token) {
       res.statusCode = 401;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end("Unauthorized");
       return true;
+    }
+    if (fromQuery) {
+      logHooks.warn(
+        "Hook token provided via query parameter is deprecated for security reasons. " +
+          "Tokens in URLs appear in logs, browser history, and referrer headers. " +
+          "Use Authorization: Bearer <token> or X-Moltbot-Token header instead.",
+      );
     }
 
     if (req.method !== "POST") {
@@ -174,6 +182,7 @@ export function createHooksRequestHandler(
             model: mapped.action.model,
             thinking: mapped.action.thinking,
             timeoutSeconds: mapped.action.timeoutSeconds,
+            allowUnsafeExternalContent: mapped.action.allowUnsafeExternalContent,
           });
           sendJson(res, 202, { ok: true, runId });
           return true;
@@ -295,10 +304,10 @@ export function createGatewayHttpServer(opts: {
       res.statusCode = 404;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end("Not Found");
-    } catch (err) {
+    } catch {
       res.statusCode = 500;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.end(String(err));
+      res.end("Internal Server Error");
     }
   }
 
