@@ -1,0 +1,78 @@
+# Moltbot (Clawdbot) - Cursor Rules
+
+## Project Overview
+Moltbot is a personal AI assistant platform that provides:
+- Multi-channel messaging (Telegram, WhatsApp, Discord, etc.)
+- OpenAI-compatible HTTP API for integration with other apps
+- Tool/skill system for extended capabilities
+- Cron scheduling and automation
+
+## A2PM Integration (IMPORTANT)
+This project integrates with **A2PM Web App** - a personal productivity application. When debugging issues related to:
+- API requests from A2PM failing
+- Chat completions returning errors
+- Streaming not working
+- Authentication/token issues
+- Health check failures
+
+**Check BOTH this codebase AND the A2PM codebase** (`../a2pm-web-app` or `~/Documents/GitHub/a2pm-web-app`).
+
+### Integration Points in This Project
+- **Gateway HTTP API**: `http://127.0.0.1:18789/v1/chat/completions`
+  - OpenAI-compatible chat completions endpoint
+  - Supports `stream: true` for SSE streaming
+  - Auth via `Authorization: Bearer <token>` header
+- **Configuration**: `~/.clawdbot/moltbot.json`
+  - `gateway.auth.token` - API token for authentication
+  - `gateway.http.endpoints.chatCompletions.enabled` - Must be `true`
+- **A2PM Skill**: `~/clawd/skills/a2pm/` - Skill for accessing A2PM data via MCP
+
+### Integration Files in A2PM
+- `server/routes/moltbot.js` - A2PM's backend routes that call this gateway
+- `src/services/api.ts` - A2PM's frontend API client
+- `src/components/AI/AIView.tsx` - A2PM's chat UI
+
+### How A2PM Connects
+1. A2PM reads gateway token from `~/.clawdbot/moltbot.json`
+2. A2PM backend proxies requests to `http://127.0.0.1:18789/v1/chat/completions`
+3. Streaming responses use SSE format (`data: {...}\n\n`)
+4. A2PM parses stream and displays in UI
+
+### Common Integration Issues
+- **Connection refused**: Gateway not running. Check `lsof -i :18789`
+- **401 Unauthorized**: Token mismatch. Check `gateway.auth.token` in config
+- **Timeout**: Claude API slow. Consider streaming to keep connection alive
+- **CORS issues**: Gateway should be on same machine (loopback)
+
+### Debugging Commands
+```bash
+# Check if gateway is running
+lsof -i :18789
+
+# Test health
+curl http://127.0.0.1:18789/v1/chat/completions \
+  -H "Authorization: Bearer $(jq -r '.gateway.auth.token' ~/.clawdbot/moltbot.json)" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"default","messages":[{"role":"user","content":"hi"}],"max_tokens":5}'
+
+# Check config
+cat ~/.clawdbot/moltbot.json | jq '.gateway'
+```
+
+## Tech Stack
+- Runtime: Node.js
+- Architecture: Gateway daemon + channel plugins
+- API: OpenAI-compatible HTTP endpoints
+- Config: JSON in `~/.clawdbot/moltbot.json`
+
+## Code Style
+- TypeScript where applicable
+- Use async/await
+- Prefix logs with component name: `[Gateway]`, `[Telegram]`, etc.
+
+## Workspace Context
+The agent workspace is at `~/clawd/` which contains:
+- `MEMORY.md` - Long-term memory
+- `memory/` - Daily notes
+- `skills/` - Custom skills including `a2pm/` skill
+- `TOOLS.md` - Tool configuration notes
