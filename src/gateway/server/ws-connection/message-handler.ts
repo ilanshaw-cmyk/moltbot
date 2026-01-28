@@ -375,7 +375,12 @@ export function attachGatewayWsMessageHandler(params: {
         const allowControlUiBypass = allowInsecureControlUi || disableControlUiDeviceAuth;
         const device = disableControlUiDeviceAuth ? null : deviceRaw;
         if (!device) {
-          const canSkipDevice = allowControlUiBypass ? hasSharedAuth : hasTokenAuth;
+          // When dangerouslyDisableDeviceAuth is true, allow Control UI without any auth
+          const canSkipDevice = disableControlUiDeviceAuth
+            ? true
+            : allowControlUiBypass
+              ? hasSharedAuth
+              : hasTokenAuth;
 
           if (isControlUi && !allowControlUiBypass) {
             const errorMessage = "control ui requires HTTPS or localhost (secure context)";
@@ -564,16 +569,6 @@ export function attachGatewayWsMessageHandler(params: {
           }
         }
 
-        console.warn(
-          "[message-handler] DEBUG connectParams.auth",
-          JSON.stringify({
-            hasAuth: Boolean(connectParams.auth),
-            authToken: connectParams.auth?.token ?? null,
-            authPassword: connectParams.auth?.password ? "[REDACTED]" : null,
-            fullAuth: connectParams.auth,
-          }),
-        );
-
         const authResult = await authorizeGatewayConnect({
           auth: resolvedAuth,
           connectAuth: connectParams.auth,
@@ -583,6 +578,11 @@ export function attachGatewayWsMessageHandler(params: {
         let authOk = authResult.ok;
         let authMethod =
           authResult.method ?? (resolvedAuth.mode === "password" ? "password" : "token");
+        // When dangerouslyDisableDeviceAuth is true, also skip token/password auth for Control UI
+        if (!authOk && disableControlUiDeviceAuth) {
+          authOk = true;
+          authMethod = "control-ui-bypass";
+        }
         if (!authOk && connectParams.auth?.token && device) {
           const tokenCheck = await verifyDeviceToken({
             deviceId: device.id,

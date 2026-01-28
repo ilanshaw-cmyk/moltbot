@@ -146,6 +146,51 @@ WHERE company_id = <company_id> AND client = '<client>' AND project = '<project>
 WHERE company_id = <company_id>
 ```
 
+## Runner ↔ MoltBot Cron Sync
+
+A2PM Runners automatically sync with MoltBot's cron system. When you create or update a runner:
+
+1. **A2PM → MoltBot**: When a runner is created/updated in A2PM, it automatically creates/updates a corresponding MoltBot cron job
+2. **MoltBot → A2PM**: When you create a runner via MoltBot (using SQL), it appears on the A2PM Runners page
+
+### Sync Status Columns
+
+The `runners` table has sync tracking columns:
+
+| Column | Description |
+|--------|-------------|
+| `moltbot_cron_id` | ID of the linked MoltBot cron job |
+| `moltbot_sync_status` | Status: `synced`, `pending`, `error`, `disabled` |
+| `moltbot_synced_at` | Timestamp of last successful sync |
+| `moltbot_sync_error` | Error message if sync failed |
+
+### Creating Runners via MoltBot
+
+When creating a runner via SQL, also create the MoltBot cron job for execution:
+
+```sql
+-- 1. Insert into A2PM runners table
+INSERT INTO runners (
+  company_id, user_id, name, description, scope, client, project,
+  frequency, frequency_time, instructions, is_active
+) VALUES (
+  2, '00000000-0000-0000-0000-000000000001',
+  'Daily Job Summary', 'Summarise new job postings',
+  'project', 'Job Search', 'Project Management',
+  'daily', '08:00:00',
+  'Search emails for new job postings and summarise them.',
+  true
+) RETURNING id;
+```
+
+Then use the `cron` tool to create the MoltBot scheduled job:
+
+```
+cron add --name "a2pm-runner-<id>" --schedule "0 8 * * *" --message "Execute A2PM Runner: Daily Job Summary..."
+```
+
+The A2PM Runners page will show the sync status for each runner.
+
 ## Related References
 
 - See `references/database-schemas.md` for full table schemas
