@@ -31,14 +31,15 @@ const MINIMAX_API_COST = {
 };
 
 const MOONSHOT_BASE_URL = "https://api.moonshot.ai/v1";
-const MOONSHOT_DEFAULT_MODEL_ID = "kimi-k2-0905-preview";
+const MOONSHOT_DEFAULT_MODEL_ID = "kimi-k2.5";
 const MOONSHOT_DEFAULT_CONTEXT_WINDOW = 256000;
-const MOONSHOT_DEFAULT_MAX_TOKENS = 8192;
+const MOONSHOT_DEFAULT_MAX_TOKENS = 32768;
 const MOONSHOT_DEFAULT_COST = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
+  // Kimi K2.5: $0.60/M input tokens = $0.0006/1K, output ~$2.50/M
+  input: 0.6,
+  output: 2.5,
+  cacheRead: 0.1,
+  cacheWrite: 0.3,
 };
 const KIMI_CODE_BASE_URL = "https://api.kimi.com/coding/v1";
 const KIMI_CODE_MODEL_ID = "kimi-for-coding";
@@ -274,13 +275,49 @@ function buildMoonshotProvider(): ProviderConfig {
     api: "openai-completions",
     models: [
       {
-        id: MOONSHOT_DEFAULT_MODEL_ID,
+        id: "kimi-k2.5",
+        name: "Kimi K2.5",
+        reasoning: false,
+        input: ["text", "image"],
+        cost: MOONSHOT_DEFAULT_COST,
+        contextWindow: MOONSHOT_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: MOONSHOT_DEFAULT_MAX_TOKENS,
+      },
+      {
+        id: "kimi-k2-0905-preview",
         name: "Kimi K2 0905 Preview",
         reasoning: false,
         input: ["text"],
         cost: MOONSHOT_DEFAULT_COST,
         contextWindow: MOONSHOT_DEFAULT_CONTEXT_WINDOW,
-        maxTokens: MOONSHOT_DEFAULT_MAX_TOKENS,
+        maxTokens: 8192,
+      },
+      {
+        id: "kimi-k2-turbo-preview",
+        name: "Kimi K2 Turbo",
+        reasoning: false,
+        input: ["text"],
+        cost: MOONSHOT_DEFAULT_COST,
+        contextWindow: MOONSHOT_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: 8192,
+      },
+      {
+        id: "kimi-k2-thinking",
+        name: "Kimi K2 Thinking",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 1.2, output: 5, cacheRead: 0.2, cacheWrite: 0.6 },
+        contextWindow: MOONSHOT_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: 8192,
+      },
+      {
+        id: "kimi-k2-thinking-turbo",
+        name: "Kimi K2 Thinking Turbo",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 1.2, output: 5, cacheRead: 0.2, cacheWrite: 0.6 },
+        contextWindow: MOONSHOT_DEFAULT_CONTEXT_WINDOW,
+        maxTokens: 8192,
       },
     ],
   };
