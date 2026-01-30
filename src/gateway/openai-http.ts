@@ -53,6 +53,7 @@ function extractTextContent(content: unknown): string {
         const type = (part as { type?: unknown }).type;
         const text = (part as { text?: unknown }).text;
         const inputText = (part as { input_text?: unknown }).input_text;
+        // NOTE: We intentionally ignore image blocks here.
         if (type === "text" && typeof text === "string") return text;
         if (type === "input_text" && typeof text === "string") return text;
         if (typeof inputText === "string") return inputText;
@@ -62,6 +63,26 @@ function extractTextContent(content: unknown): string {
       .join("\n");
   }
   return "";
+}
+
+function extractFirstImageDataUrl(content: unknown): string | null {
+  if (!Array.isArray(content)) return null;
+  for (const part of content) {
+    if (!part || typeof part !== "object") continue;
+    const type = (part as { type?: unknown }).type;
+    if (type !== "image_url") continue;
+
+    const raw = (part as any).image_url;
+    if (typeof raw === "string") {
+      const s = raw.trim();
+      if (s.startsWith("data:image/")) return s;
+    }
+    if (raw && typeof raw === "object") {
+      const url = typeof raw.url === "string" ? raw.url.trim() : "";
+      if (url.startsWith("data:image/")) return url;
+    }
+  }
+  return null;
 }
 
 function buildAgentPrompt(messagesUnknown: unknown): {
@@ -187,6 +208,20 @@ export async function handleOpenAiHttpRequest(
   const agentId = resolveAgentIdForRequest({ req, model });
   const sessionKey = resolveOpenAiSessionKey({ req, agentId, user });
   const prompt = buildAgentPrompt(payload.messages);
+  const imageDataUrl = extractFirstImageDataUrl(
+    (payload as any).messages?.[
+      Array.isArray((payload as any).messages) ? (payload as any).messages.length - 1 : 0
+    ]?.content,
+  );
+  const imageContent = imageDataUrl
+    ? ([
+        {
+          type: "image" as const,
+          data: imageDataUrl.replace(/^data:[^;]+;base64,/i, ""),
+          mimeType: imageDataUrl.match(/^data:([^;]+);base64,/i)?.[1] ?? "image/png",
+        },
+      ] as const)
+    : undefined;
   if (!prompt.message) {
     sendJson(res, 400, {
       error: {
@@ -211,6 +246,7 @@ export async function handleOpenAiHttpRequest(
           deliver: false,
           messageChannel: "webchat",
           bestEffortDeliver: false,
+          images: imageContent as any,
         },
         defaultRuntime,
         deps,
@@ -318,6 +354,7 @@ export async function handleOpenAiHttpRequest(
           deliver: false,
           messageChannel: "webchat",
           bestEffortDeliver: false,
+          images: imageContent as any,
         },
         defaultRuntime,
         deps,
