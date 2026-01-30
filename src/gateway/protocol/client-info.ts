@@ -11,6 +11,11 @@ export const GATEWAY_CLIENT_IDS = {
   TEST: "test",
   FINGERPRINT: "fingerprint",
   PROBE: "openclaw-probe",
+  // Legacy clawdbot client IDs for backward compatibility
+  LEGACY_CONTROL_UI: "clawdbot-control-ui",
+  LEGACY_MACOS_APP: "clawdbot-macos",
+  LEGACY_IOS_APP: "clawdbot-ios",
+  LEGACY_PROBE: "clawdbot-probe",
 } as const;
 
 export type GatewayClientId = (typeof GATEWAY_CLIENT_IDS)[keyof typeof GATEWAY_CLIENT_IDS];
