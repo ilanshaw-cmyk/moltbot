@@ -153,9 +153,37 @@ Note: Moonshot and Kimi Code are separate providers. Keys are not interchangeabl
 }
 ```
 
+## Using via OpenRouter (recommended)
+
+Kimi K2.5 is also available on **OpenRouter**, which provides a unified API and may
+be easier to set up if you already have an OpenRouter account.
+
+```bash
+moltbot onboard --auth-choice apiKey --token-provider openrouter --token "$OPENROUTER_API_KEY"
+```
+
+Then use the model ref: `openrouter/moonshotai/kimi-k2.5`
+
+```json5
+{
+  env: { OPENROUTER_API_KEY: "sk-or-..." },
+  agents: {
+    defaults: {
+      model: { primary: "openrouter/moonshotai/kimi-k2.5" }
+    }
+  }
+}
+```
+
+OpenRouter pricing for Kimi K2.5:
+- Input: $0.50/M tokens
+- Output: $2.80/M tokens
+- Context: 262K tokens
+
 ## Notes
 
 - Moonshot model refs use `moonshot/<modelId>`. Kimi Code model refs use `kimi-code/<modelId>`.
+- OpenRouter model refs use `openrouter/moonshotai/<modelId>`.
 - Override pricing and context metadata in `models.providers` if needed.
 - If Moonshot publishes different context limits for a model, adjust
   `contextWindow` accordingly.
