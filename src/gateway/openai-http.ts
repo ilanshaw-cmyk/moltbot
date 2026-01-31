@@ -252,14 +252,26 @@ export async function handleOpenAiHttpRequest(
         deps,
       );
 
-      const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
-      const content =
-        Array.isArray(payloads) && payloads.length > 0
-          ? payloads
-              .map((p) => (typeof p.text === "string" ? p.text : ""))
-              .filter(Boolean)
-              .join("\n\n")
-          : "No response from OpenClaw.";
+      const payloads = (
+        result as {
+          payloads?: Array<{ text?: string; mediaUrl?: string | null; mediaUrls?: string[] }>;
+        } | null
+      )?.payloads;
+      // Build content from payloads, re-appending MEDIA lines for API consumers
+      // (OpenClaw strips MEDIA: tokens during normalization, but API clients like A2PM need them)
+      let content = "No response from OpenClaw.";
+      if (Array.isArray(payloads) && payloads.length > 0) {
+        const parts: string[] = [];
+        for (const p of payloads) {
+          if (typeof p.text === "string" && p.text) parts.push(p.text);
+          // Re-append MEDIA lines so API consumers can process them
+          const mediaUrls = p.mediaUrls ?? (p.mediaUrl ? [p.mediaUrl] : []);
+          for (const url of mediaUrls) {
+            if (url) parts.push(`MEDIA:${url}`);
+          }
+        }
+        content = parts.filter(Boolean).join("\n\n");
+      }
 
       sendJson(res, 200, {
         id: runId,
@@ -374,14 +386,25 @@ export async function handleOpenAiHttpRequest(
           });
         }
 
-        const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
-        const content =
-          Array.isArray(payloads) && payloads.length > 0
-            ? payloads
-                .map((p) => (typeof p.text === "string" ? p.text : ""))
-                .filter(Boolean)
-                .join("\n\n")
-            : "No response from OpenClaw.";
+        const payloads = (
+          result as {
+            payloads?: Array<{ text?: string; mediaUrl?: string | null; mediaUrls?: string[] }>;
+          } | null
+        )?.payloads;
+        // Build content from payloads, re-appending MEDIA lines for API consumers
+        let content = "No response from OpenClaw.";
+        if (Array.isArray(payloads) && payloads.length > 0) {
+          const parts: string[] = [];
+          for (const p of payloads) {
+            if (typeof p.text === "string" && p.text) parts.push(p.text);
+            // Re-append MEDIA lines so API consumers can process them
+            const mediaUrls = p.mediaUrls ?? (p.mediaUrl ? [p.mediaUrl] : []);
+            for (const url of mediaUrls) {
+              if (url) parts.push(`MEDIA:${url}`);
+            }
+          }
+          content = parts.filter(Boolean).join("\n\n");
+        }
 
         sawAssistantDelta = true;
         writeSse(res, {
