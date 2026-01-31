@@ -40,6 +40,23 @@ function writeSse(res: ServerResponse, data: unknown) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+function extractMediaLinesFromPayloads(
+  payloads: Array<{ text?: string; mediaUrl?: string | null; mediaUrls?: string[] }> | undefined,
+): string {
+  if (!Array.isArray(payloads) || payloads.length === 0) return "";
+  const media: string[] = [];
+  for (const p of payloads) {
+    const urls = p.mediaUrls ?? (p.mediaUrl ? [p.mediaUrl] : []);
+    for (const url of urls) {
+      if (typeof url === "string" && url.trim()) {
+        media.push(url.trim());
+      }
+    }
+  }
+  if (media.length === 0) return "";
+  return media.map((u) => `MEDIA:${u}`).join("\n\n");
+}
+
 function asMessages(val: unknown): OpenAiChatMessage[] {
   return Array.isArray(val) ? (val as OpenAiChatMessage[]) : [];
 }
@@ -264,11 +281,8 @@ export async function handleOpenAiHttpRequest(
         const parts: string[] = [];
         for (const p of payloads) {
           if (typeof p.text === "string" && p.text) parts.push(p.text);
-          // Re-append MEDIA lines so API consumers can process them
-          const mediaUrls = p.mediaUrls ?? (p.mediaUrl ? [p.mediaUrl] : []);
-          for (const url of mediaUrls) {
-            if (url) parts.push(`MEDIA:${url}`);
-          }
+          const mediaLines = extractMediaLinesFromPayloads([p]);
+          if (mediaLines) parts.push(mediaLines);
         }
         content = parts.filter(Boolean).join("\n\n");
       }
@@ -374,6 +388,13 @@ export async function handleOpenAiHttpRequest(
 
       if (closed) return;
 
+      const payloads = (
+        result as {
+          payloads?: Array<{ text?: string; mediaUrl?: string | null; mediaUrls?: string[] }>;
+        } | null
+      )?.payloads;
+      const mediaLines = extractMediaLinesFromPayloads(payloads);
+
       if (!sawAssistantDelta) {
         if (!wroteRole) {
           wroteRole = true;
@@ -397,11 +418,8 @@ export async function handleOpenAiHttpRequest(
           const parts: string[] = [];
           for (const p of payloads) {
             if (typeof p.text === "string" && p.text) parts.push(p.text);
-            // Re-append MEDIA lines so API consumers can process them
-            const mediaUrls = p.mediaUrls ?? (p.mediaUrl ? [p.mediaUrl] : []);
-            for (const url of mediaUrls) {
-              if (url) parts.push(`MEDIA:${url}`);
-            }
+            const perPayloadMedia = extractMediaLinesFromPayloads([p]);
+            if (perPayloadMedia) parts.push(perPayloadMedia);
           }
           content = parts.filter(Boolean).join("\n\n");
         }
@@ -416,6 +434,34 @@ export async function handleOpenAiHttpRequest(
             {
               index: 0,
               delta: { content },
+              finish_reason: null,
+            },
+          ],
+        });
+      }
+
+      // Even when the assistant streamed deltas, we still need to append MEDIA lines for API consumers
+      // (A2PM uses these to copy the image into durable storage and embed it in the conversation).
+      if (!closed && mediaLines) {
+        if (!wroteRole) {
+          wroteRole = true;
+          writeSse(res, {
+            id: runId,
+            object: "chat.completion.chunk",
+            created: Math.floor(Date.now() / 1000),
+            model,
+            choices: [{ index: 0, delta: { role: "assistant" } }],
+          });
+        }
+        writeSse(res, {
+          id: runId,
+          object: "chat.completion.chunk",
+          created: Math.floor(Date.now() / 1000),
+          model,
+          choices: [
+            {
+              index: 0,
+              delta: { content: `\n\n${mediaLines}` },
               finish_reason: null,
             },
           ],
