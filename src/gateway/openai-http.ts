@@ -355,7 +355,10 @@ export async function handleOpenAiHttpRequest(
 
     if (evt.stream === "lifecycle") {
       const phase = evt.data?.phase;
-      if (phase === "end" || phase === "error") {
+      // IMPORTANT: don't close the SSE stream on lifecycle "end".
+      // `agentCommand()` resolves *after* lifecycle end is emitted, and we still need to append any
+      // MEDIA lines derived from the final payloads before sending [DONE].
+      if (phase === "error") {
         closed = true;
         unsubscribe();
         writeDone(res);
