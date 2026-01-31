@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply/reply/history.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommand } from "../commands/agent.js";
+import { loadConfig } from "../config/config.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { defaultRuntime } from "../runtime.js";
+import { resolveUserPath } from "../utils.js";
 import { authorizeGatewayConnect, type ResolvedGatewayAuth } from "./auth.js";
 import {
   readJsonBodyOrError,
@@ -103,6 +107,62 @@ function extractImageDataUrls(content: unknown): string[] {
     }
   }
   return urls;
+}
+
+function decodeImageDataUrl(dataUrl: string): { mimeType: string; buffer: Buffer } | null {
+  const s = String(dataUrl || "").trim();
+  const m = s.match(/^data:([^;]+);base64,(.+)$/i);
+  if (!m?.[1] || !m?.[2]) return null;
+  const mimeType = m[1].trim() || "image/png";
+  const base64 = m[2].trim();
+  if (!base64) return null;
+  try {
+    return { mimeType, buffer: Buffer.from(base64, "base64") };
+  } catch {
+    return null;
+  }
+}
+
+function inferImageExtFromMime(mimeType: string): string {
+  const m = String(mimeType || "")
+    .toLowerCase()
+    .trim();
+  if (m === "image/png") return ".png";
+  if (m === "image/jpeg" || m === "image/jpg") return ".jpg";
+  if (m === "image/webp") return ".webp";
+  if (m === "image/gif") return ".gif";
+  if (m === "image/bmp") return ".bmp";
+  if (m === "image/tiff") return ".tiff";
+  return ".png";
+}
+
+async function persistInboundImagesToWorkspace(params: {
+  imageDataUrls: string[];
+}): Promise<Array<{ filePath: string; mimeType: string }>> {
+  if (!params.imageDataUrls.length) return [];
+  const cfg = loadConfig();
+  const configuredWorkspace = cfg?.agents?.defaults?.workspace;
+  const workspaceDir = resolveUserPath(
+    typeof configuredWorkspace === "string" && configuredWorkspace.trim()
+      ? configuredWorkspace.trim()
+      : "~/clawd",
+  );
+
+  const inboundDir = path.join(workspaceDir, "media", "inbound");
+  await fs.mkdir(inboundDir, { recursive: true });
+
+  const out: Array<{ filePath: string; mimeType: string }> = [];
+  const now = Date.now();
+  for (let i = 0; i < params.imageDataUrls.length; i += 1) {
+    const decoded = decodeImageDataUrl(params.imageDataUrls[i] ?? "");
+    if (!decoded) continue;
+    const ext = inferImageExtFromMime(decoded.mimeType);
+    const fileName = `a2pm-upload-${now}-${i + 1}-${randomUUID().slice(0, 8)}${ext}`;
+    const filePath = path.join(inboundDir, fileName);
+    await fs.writeFile(filePath, decoded.buffer);
+    out.push({ filePath, mimeType: decoded.mimeType });
+  }
+  return out;
 }
 
 function buildAgentPrompt(messagesUnknown: unknown): {
@@ -230,7 +290,7 @@ export async function handleOpenAiHttpRequest(
 
   const agentId = resolveAgentIdForRequest({ req, model });
   const sessionKey = resolveOpenAiSessionKey({ req, agentId, user });
-  const prompt = buildAgentPrompt(payload.messages);
+  let prompt = buildAgentPrompt(payload.messages);
   const lastMessageContent = (payload as any).messages?.[
     Array.isArray((payload as any).messages) ? (payload as any).messages.length - 1 : 0
   ]?.content;
@@ -246,6 +306,29 @@ export async function handleOpenAiHttpRequest(
           })
           .filter(Boolean)
       : undefined;
+
+  // Bridge A2PM "inline uploads" to tools that require file paths:
+  // persist data URLs into the workspace and append `[media attached ...]` lines to the prompt.
+  if (imageDataUrls.length > 0) {
+    try {
+      const persisted = await persistInboundImagesToWorkspace({ imageDataUrls });
+      if (persisted.length > 0) {
+        const lines: string[] = [];
+        lines.push(`[media attached: ${persisted.length} files]`);
+        persisted.forEach((p, idx) => {
+          lines.push(
+            `[media attached ${idx + 1}/${persisted.length}: ${p.filePath} (${p.mimeType})]`,
+          );
+        });
+        prompt = {
+          ...prompt,
+          message: `${prompt.message}\n\n${lines.join("\n")}`.trim(),
+        };
+      }
+    } catch {
+      // Best-effort only; keep going with inline images.
+    }
+  }
   if (!prompt.message) {
     sendJson(res, 400, {
       error: {
