@@ -217,7 +217,10 @@ export async function handleOpenAiHttpRequest(
     return true;
   }
 
-  const body = await readJsonBodyOrError(req, res, opts.maxBodyBytes ?? 1024 * 1024);
+  // A2PM can attach multiple images as base64 data URLs (OpenAI-compatible `image_url` blocks),
+  // which can easily exceed 1MB. Use a larger default body limit for this endpoint.
+  // (Still protected by gateway auth.)
+  const body = await readJsonBodyOrError(req, res, opts.maxBodyBytes ?? 30 * 1024 * 1024);
   if (body === undefined) return true;
 
   const payload = coerceRequest(body);
