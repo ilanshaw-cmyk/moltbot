@@ -82,8 +82,9 @@ function extractTextContent(content: unknown): string {
   return "";
 }
 
-function extractFirstImageDataUrl(content: unknown): string | null {
-  if (!Array.isArray(content)) return null;
+function extractImageDataUrls(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  const urls: string[] = [];
   for (const part of content) {
     if (!part || typeof part !== "object") continue;
     const type = (part as { type?: unknown }).type;
@@ -92,14 +93,16 @@ function extractFirstImageDataUrl(content: unknown): string | null {
     const raw = (part as any).image_url;
     if (typeof raw === "string") {
       const s = raw.trim();
-      if (s.startsWith("data:image/")) return s;
+      if (s.startsWith("data:image/")) urls.push(s);
+      continue;
     }
     if (raw && typeof raw === "object") {
       const url = typeof raw.url === "string" ? raw.url.trim() : "";
-      if (url.startsWith("data:image/")) return url;
+      if (url.startsWith("data:image/")) urls.push(url);
+      continue;
     }
   }
-  return null;
+  return urls;
 }
 
 function buildAgentPrompt(messagesUnknown: unknown): {
@@ -225,20 +228,21 @@ export async function handleOpenAiHttpRequest(
   const agentId = resolveAgentIdForRequest({ req, model });
   const sessionKey = resolveOpenAiSessionKey({ req, agentId, user });
   const prompt = buildAgentPrompt(payload.messages);
-  const imageDataUrl = extractFirstImageDataUrl(
-    (payload as any).messages?.[
-      Array.isArray((payload as any).messages) ? (payload as any).messages.length - 1 : 0
-    ]?.content,
-  );
-  const imageContent = imageDataUrl
-    ? ([
-        {
-          type: "image" as const,
-          data: imageDataUrl.replace(/^data:[^;]+;base64,/i, ""),
-          mimeType: imageDataUrl.match(/^data:([^;]+);base64,/i)?.[1] ?? "image/png",
-        },
-      ] as const)
-    : undefined;
+  const lastMessageContent = (payload as any).messages?.[
+    Array.isArray((payload as any).messages) ? (payload as any).messages.length - 1 : 0
+  ]?.content;
+  const imageDataUrls = extractImageDataUrls(lastMessageContent);
+  const imageContent =
+    imageDataUrls.length > 0
+      ? imageDataUrls
+          .map((imageDataUrl) => {
+            const mimeType = imageDataUrl.match(/^data:([^;]+);base64,/i)?.[1] ?? "image/png";
+            const data = imageDataUrl.replace(/^data:[^;]+;base64,/i, "");
+            if (!data) return null;
+            return { type: "image" as const, data, mimeType };
+          })
+          .filter(Boolean)
+      : undefined;
   if (!prompt.message) {
     sendJson(res, 400, {
       error: {
